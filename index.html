@@ -3,203 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ChatGPT API in the Browser</title>
+  <title>o3 Chat Demo</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 1200px; margin: auto; padding: 1em; }
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1em; }
     #chat { border: 1px solid #ccc; padding: 1em; height: 600px; overflow-y: auto; margin-bottom: 1em; }
     .message { margin-bottom: 1em; white-space: pre-wrap; }
     .user { color: blue; }
     .assistant { color: green; }
-    .error { color: red; }
     textarea { width: 100%; }
   </style>
 </head>
 <body>
-  <h1>ChatGPT & o3‑pro API in the Browser</h1>
-  <div>
-    <label>API Key: <input type="password" id="apiKey"></label>
-    <button id="saveKey">Save</button>
-  </div>
-  <div>
-    <label>Model:
-      <select id="model">
-        <option value="o3">o3</option>
-        <option value="gpt-4.5-preview">gpt-4.5-preview</option>
-        <option value="o3-pro">o3-pro</option>
-      </select>
-    </label>
-  </div>
+  <h1>o3 Chat Demo</h1>
+
   <div id="chat"></div>
-  <textarea id="userInput" rows="3" placeholder="Type your message..."></textarea>
+
+  <textarea id="userInput" rows="3" placeholder="Type your message…"></textarea>
   <div>
     <button id="send">Send</button>
     <button id="clear">Clear</button>
     <button id="download">Download Conversation</button>
   </div>
 
-<script>
-/***** persistent helpers *****/
-function loadSettings() {
-  const key = localStorage.getItem('apiKey');
-  if (key) document.getElementById('apiKey').value = key;
-
-  const stored = localStorage.getItem('model');
-  const allowed = ['o3', 'gpt-4.5-preview', 'o3-pro'];
-  const model = allowed.includes(stored) ? stored : 'o3';
-  document.getElementById('model').value = model;
-}
-
-function loadConversation() {
-  const conv = localStorage.getItem('conversation');
-  return conv ? JSON.parse(conv) : [];
-}
-
-function saveConversation(conv) {
-  localStorage.setItem('conversation', JSON.stringify(conv));
-}
-
-function renderConversation() {
-  const chat = document.getElementById('chat');
-  chat.innerHTML = '';
-  const conv = loadConversation();
-  conv.forEach(msg => {
-    const div = document.createElement('div');
-    div.className = 'message ' + msg.role;
-    const label = msg.role === 'user' ? 'I said:' : 'Chatgpt said:';
-    div.textContent = label + '\n' + msg.content;
-    chat.appendChild(div);
-  });
-  chat.scrollTop = chat.scrollHeight;
-}
-
-/***** o3‑pro state *****/
-let prevResponseId = localStorage.getItem('o3proPrev') || null;
-
-function persistPrev(id){
-  if(id){
-    prevResponseId = id;
-    localStorage.setItem('o3proPrev', id);
-  }
-}
-
-function clearPrev(){
-  prevResponseId = null;
-  localStorage.removeItem('o3proPrev');
-}
-
-/***** main send *****/
-async function sendMessage() {
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if (!apiKey) {
-    alert('Please set your API key.');
-    return;
-  }
-  const model = document.getElementById('model').value;
-  localStorage.setItem('apiKey', apiKey);
-  localStorage.setItem('model', model);
-
-  const conv = loadConversation();
-  const content = document.getElementById('userInput').value.trim();
-  if (!content) return;
-  conv.push({ role: 'user', content });
-  document.getElementById('userInput').value = '';
-  renderConversation();
-  saveConversation(conv);
-
-  try{
-    let reply;
-    if (model === 'o3-pro') {
-      /***** o3‑pro branch *****/
-      const payload = { model: 'o3-pro', input: content };
-      if (prevResponseId) payload.previous_response_id = prevResponseId;
-
-      const res = await fetch('https://api.openai.com/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey
-        },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-
-      /* extract assistant text exactly like original o3‑pro demo */
-      let txt;
-      if (Array.isArray(data.output)) {
-        for (const part of data.output) {
-          if (part.type === 'message' && Array.isArray(part.content)) {
-            const chunk = part.content.find(c => c.text);
-            if (chunk && chunk.text) { txt = chunk.text; break; }
-          }
-        }
-      }
-      if (!txt) txt = data.output_text ?? data.text ?? data.choices?.[0]?.text;
-      if (typeof txt !== 'string') txt = '[no reply]';
-
-      reply = txt.trim();
-      persistPrev(data.id);
-    } else {
-      /***** normal chat completions branch *****/
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey
-        },
-        body: JSON.stringify({ model, messages: conv })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-      reply = data.choices[0].message.content.trim();
-    }
-
-    conv.push({ role: 'assistant', content: reply });
-    saveConversation(conv);
-    renderConversation();
-  } catch(err){
-    /* show error inline */
-    const chat = document.getElementById('chat');
-    const div = document.createElement('div');
-    div.className = 'message error';
-    div.textContent = 'Error: ' + (err.message || err.toString());
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-  }
-}
-
-/***** misc buttons *****/
-function clearConversation() {
-  localStorage.removeItem('conversation');
-  clearPrev();
-  renderConversation();
-}
-
-function downloadConversation() {
-  const conv = loadConversation();
-  const blob = new Blob([JSON.stringify(conv, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'conversation.json';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-/***** wire up *****/
-document.getElementById('saveKey').addEventListener('click', () => {
-  const key = document.getElementById('apiKey').value.trim();
-  localStorage.setItem('apiKey', key);
-});
-
-document.getElementById('send').addEventListener('click', sendMessage);
-
-document.getElementById('clear').addEventListener('click', clearConversation);
-
-document.getElementById('download').addEventListener('click', downloadConversation);
-
-loadSettings();
-renderConversation();
-</script>
+  <script src="script.js"></script>
 </body>
 </html>
