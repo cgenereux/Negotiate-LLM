@@ -1,5 +1,5 @@
 // URL of your Cloudflare Worker
-const WORKER_URL = 'https://still-glade-4420.curtisgenereux01.workers.dev';
+const WORKER_URL = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
 const MODEL = 'o3';
 
 /* ---- local storage helpers ---- */
