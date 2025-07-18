@@ -43,10 +43,12 @@
     .then(async data => {
       document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
 
-      const sys = `You are an expert negotiator. ` +
-                  `Curtis asked: ${data.rq}\n\n` +
-                  `PRIVATE CONTEXT: ${data.context}\n\n` +
-                  `Your first message should greet ${data.to} in a friendly way, summarize the request gently, and ask if they'd like help. NEVER show the PRIVATE CONTEXT directly.`;
+      const sys = `You are an expert negotiator helping facilitate a friendly, productive conversation.
+      ${data.from ? data.from : 'Someone'} asked: ${data.rq}
+      
+      PRIVATE CONTEXT: ${data.context}
+      
+      When greeting ${data.to}, just briefly mention that ${data.from ? data.from : 'someone'} asked for your help, and kindly ask if ${data.to} would be open to discussing the topic. Do NOT reveal detailed PRIVATE CONTEXT directly or suggest immediate drastic actions. Your goal is simply to start a friendly conversation and see if they're open to advice.`;
 
       convo.push({role:'system', content: sys});
 
