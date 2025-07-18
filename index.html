@@ -3,58 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Negotiate‑LLM Link Maker</title>
+  <title>Negotiate‑LLM Chat</title>
   <style>
-    body    { font-family: Arial, sans-serif; margin: 0; }
-    main    { max-width: 480px; margin: 12vh auto; padding: 1.5rem; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,.06); }
-    label   { display: block; margin-bottom: .75rem; }
-    input, textarea {
-      width: 100%;
-      padding: .4rem .5rem;
-      border: 1px solid #bbb;
-      border-radius: 6px;
-      font-size: 1rem;
-      box-sizing: border-box;
-    }
-    textarea#context { height: 140px; resize: vertical; }
-    button  { padding: .5rem 1.4rem; font-size: 1rem; border: none; border-radius: 6px; background:#1a73e8; color:#fff; cursor:pointer; }
-    button:hover { background:#1666c1; }
-    #out    { margin-top: 1rem; word-break: break-all; }
+    body  { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1rem; }
+    #chat { height: 450px; overflow-y: auto; border: 1px solid #ccc; padding:.5rem; margin-bottom: 1rem; }
+    .user   { color:#1a73e8;  margin-bottom:.5rem; white-space:pre-wrap; }
+    .assist { color:#188038;   margin-bottom:.5rem; white-space:pre-wrap; }
+    textarea{ width:100%; }
   </style>
 </head>
 <body>
-  <main>
-    <h2 style="text-align:center">Create a negotiation link</h2>
-
-    <label>To:<br><input id="to"></label>
-    <label>From:<br><input id="from"></label>
-    <label>Request:<br><textarea id="request" rows="3"></textarea></label>
-    <label>Context:<br><textarea id="context"></textarea></label>
-
-    <div style="text-align:center"><button id="gen">Generate URL</button></div>
-    <p id="out"></p>
-  </main>
+  <h2 id="banner">Loading…</h2>
+  <div id="chat"></div>
+  <textarea id="input" rows="3" placeholder="Type a message & press Enter"></textarea>
+  <button id="send">Send</button>
 
   <script>
-    const API = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
+  const API  = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
+  const slug = new URLSearchParams(location.search).get('slug');
+  if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
 
-    document.getElementById('gen').onclick = async () => {
-      const payload = {
-        to:      document.getElementById('to').value,
-        from:    document.getElementById('from').value,
-        request: document.getElementById('request').value,
-        context: document.getElementById('context').value,
-      };
+  const convo = [];      // running conversation
+  const box   = document.getElementById('chat');
 
-      const r = await fetch(API + '/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+  function render() {
+    box.innerHTML = '';
+    convo.forEach(m => {
+      if (m.role === 'system') return; // hide system/internal msgs
+      const div = document.createElement('div');
+      div.className = m.role === 'assistant' ? 'assist' : 'user';
+      div.textContent = `${m.role === 'assistant' ? 'AI' : 'You'}: ${m.content}`;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* 1. Fetch payload and generate first AI message */
+  fetch(`${API}/payload/${slug}`)
+    .then(r => r.json())
+    .then(async data => {
+      document.getElementById('banner').textContent = `Chat with ${data.to || 'Recipient'}`;
+
+      const sys = `You are an expert negotiator hired by ${data.from || 'someone'}.\n\n`+
+                  `PRIVATE CONTEXT (not visible to ${data.to || 'the recipient'}):\n`+
+                  `${data.context}\n\n`+
+                  `Objective: ${data.rq}.\n`+
+                  `Do NOT reveal the private context. Begin with a friendly opening message addressing ${data.to}.`;
+      convo.push({ role:'system', content: sys });
+
+      // ask OpenAI for opening message
+      const res = await fetch(API, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ model:'o3', messages: convo })
       });
-      if (!r.ok) return alert(await r.text());
-      const { url } = await r.json();
-      document.getElementById('out').innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
-    };
+      const reply = (await res.json()).choices[0].message.content.trim();
+      convo.push({ role:'assistant', content: reply });
+      render();
+    })
+    .catch(err => alert(err.message));
+
+  /* 2. send helper */
+  async function send() {
+    const input = document.getElementById('input');
+    const txt = input.value.trim();
+    if (!txt) return;
+    input.value = '';
+    convo.push({ role:'user', content: txt });
+    render();
+
+    const r = await fetch(API, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ model:'o3', messages: convo })
+    });
+    if (!r.ok) return alert(await r.text());
+    const reply = (await r.json()).choices[0].message.content.trim();
+    convo.push({ role:'assistant', content: reply });
+    render();
+  }
+
+  document.getElementById('send').onclick = send;
+  document.getElementById('input').addEventListener('keydown', e=>{
+    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
+  });
   </script>
 </body>
 </html>
