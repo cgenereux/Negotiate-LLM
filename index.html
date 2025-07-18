@@ -1,30 +1,38 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>o3 Chat Demo</title>
-  <style>
-    body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1em; }
-    #chat { border: 1px solid #ccc; padding: 1em; height: 600px; overflow-y: auto; margin-bottom: 1em; }
-    .message { margin-bottom: 1em; white-space: pre-wrap; }
-    .user { color: blue; }
-    .assistant { color: green; }
-    textarea { width: 100%; }
-  </style>
-</head>
+<head><meta charset="utf-8"><title>Negotiate LLM Link Maker</title></head>
 <body>
-  <h1>Negotiate LLM Demo</h1></h1>
+  <h1>Create a negotiation link</h1>
 
-  <div id="chat"></div>
+  <label>To:<br><input id="to"  style="width:100%"></label><br><br>
+  <label>From:<br><input id="from" style="width:100%"></label><br><br>
+  <label>Request:<br><textarea id="request" rows="3" style="width:100%"></textarea></label><br><br>
+  <label>Context:<br><textarea id="context" rows="6" style="width:100%"></textarea></label><br><br>
 
-  <textarea id="userInput" rows="3" placeholder="Type your message…"></textarea>
-  <div>
-    <button id="send">Send</button>
-    <button id="clear">Clear</button>
-    <button id="download">Download Conversation</button>
-  </div>
+  <button id="gen">Generate URL</button>
 
-  <script src="script.js"></script>
+  <p id="out"></p>
+
+  <script>
+    const API = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
+
+    document.getElementById('gen').onclick = async () => {
+      const payload = {
+        to:      document.getElementById('to').value,
+        from:    document.getElementById('from').value,
+        request: document.getElementById('request').value,
+        context: document.getElementById('context').value,
+      };
+      const r = await fetch(API + '/create', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) return alert(await r.text());
+      const { url } = await r.json();
+      document.getElementById('out').innerHTML =
+        `<a href="${url}" target="_blank">${url}</a>`;
+    };
+  </script>
 </body>
 </html>
