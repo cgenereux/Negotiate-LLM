@@ -1,7 +1,11 @@
-name = "still-glade-4d20"       # the name shown in Cloudflare
-main = "worker.js"              # entry‑point file
+name = "still-glade-4d20"
+main = "worker.js"
 compatibility_date = "2025-07-17"
 
 [[kv_namespaces]]
 binding = "CHAT_QUOTA"
-id = "86b1b3f8cdb04136912344cea25c1b68"
+id      = "86b1b3f8cdb04136912344cea25c1b68"
+
+[[kv_namespaces]]
+binding = "NEG_DATA"
+id      = "586a1a03fd32433ca373739817c17e2b"
