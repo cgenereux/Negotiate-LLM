@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Negotiate‑LLM Chat</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1rem; }
+    #chat { height: 450px; overflow-y: auto; border: 1px solid #ccc; padding: .5rem; margin-bottom: 1rem; }
+    .user   { color: #1a73e8; margin-bottom: .5rem; white-space: pre-wrap; }
+    .assist { color: #188038; margin-bottom: .5rem; white-space: pre-wrap; }
+    textarea { width: 100%; }
+  </style>
+</head>
+<body>
+  <h1 id="banner">Loading…</h1>
+  <div id="chat"></div>
+  <textarea id="input" rows="3" placeholder="Type a message & press Enter"></textarea>
+  <button id="send">Send</button>
+
+  <script>
+    /* ===== CONFIG ===== */
+    const API = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
+
+    /* ===== Helper: get slug from ?slug=xxxx ===== */
+    const params = new URLSearchParams(window.location.search);
+    const slug   = params.get('slug');
+    if (!slug) {
+      alert('Missing slug parameter.');
+      throw new Error('slug missing');
+    }
+
+    const chatBox = document.getElementById('chat');
+    const convo   = [];   // running conversation array
+
+    function render() {
+      chatBox.innerHTML = '';
+      convo.forEach(m => {
+        const div = document.createElement('div');
+        div.className = m.role === 'assistant' ? 'assist' : 'user';
+        div.textContent = `${m.role === 'assistant' ? 'AI' : 'You'}: ${m.content}`;
+        chatBox.appendChild(div);
+      });
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    /* ===== Load initial payload ===== */
+    fetch(`${API}/payload/${slug}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Invalid or expired link');
+        return r.json();
+      })
+      .then(data => {
+        const systemMsg = `Hi ${data.to || 'there'}, ${data.from || 'someone'} asked:\n\n${data.rq}\n\n${data.context}`;
+        convo.push({ role: 'system', content: systemMsg });
+        document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
+        render();
+      })
+      .catch(err => {
+        alert(err.message);
+      });
+
+    /* ===== Send message to Worker/OpenAI ===== */
+    async function send() {
+      const input = document.getElementById('input');
+      const txt   = input.value.trim();
+      if (!txt) return;
+      input.value = '';
+      convo.push({ role: 'user', content: txt });
+      render();
+
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'o3', messages: convo })
+      });
+      if (!res.ok) return alert(await res.text());
+      const data  = await res.json();
+      const reply = data.choices[0].message.content.trim();
+      convo.push({ role: 'assistant', content: reply });
+      render();
+    }
+
+    document.getElementById('send').onclick = send;
+    document.getElementById('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+  </script>
+</body>
+</html>
