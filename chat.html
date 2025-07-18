@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Negotiate‑LLM Chat</title>
   <style>
-    body  { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1rem; }
-    #chat { height: 450px; overflow-y: auto; border: 1px solid #ccc; padding:.5rem; margin-bottom: 1rem; }
-    .user   { color:#1a73e8;  margin-bottom:.5rem; white-space:pre-wrap; }
-    .assist { color:#188038;   margin-bottom:.5rem; white-space:pre-wrap; }
-    textarea{ width:100%; }
+    body  { font-family: Arial, sans-serif; max-width: 920px; margin: auto; padding: 1rem; background:#111; color:#eee; }
+    /* chat box now fills ~70% of viewport height */
+    #chat { height: 70vh; overflow-y: auto; border: 1px solid #333; padding:.8rem; margin-bottom: 1rem; background:#181818; }
+    .user   { color:#4dabff; margin-bottom:.6rem; white-space:pre-wrap; }
+    .assist { color:#4ee290; margin-bottom:.6rem; white-space:pre-wrap; }
+    textarea{ width:100%; background:#262626; color:#eee; border:1px solid #444; border-radius:6px; padding:.55rem; box-sizing:border-box; }
+    button  { padding:.55rem 1.6rem; border:none; border-radius:6px; background:#1a73e8; color:#fff; cursor:pointer; }
+    button:hover{ background:#1666c1; }
   </style>
 </head>
 <body>
@@ -23,72 +26,54 @@
   const slug = new URLSearchParams(location.search).get('slug');
   if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
 
-  const convo = [];
-  const box = document.getElementById('chat');
+  const convo = []; const box = document.getElementById('chat');
 
-  function render() {
-    box.innerHTML = '';
-    convo.forEach(m => {
-      if(m.role === 'system') return; // never shown
-      const div = document.createElement('div');
-      div.className = m.role === 'assistant' ? 'assist' : 'user';
-      div.textContent = `${m.role === 'assistant' ? 'AI' : 'You'}: ${m.content}`;
+  function render(){
+    box.innerHTML='';
+    convo.forEach(m=>{
+      if(m.role==='system') return; // keep private context hidden
+      const div=document.createElement('div');
+      div.className = m.role==='assistant' ? 'assist' : 'user';
+      div.textContent = `${m.role==='assistant' ? 'o3' : 'You'}: ${m.content}`;
       box.appendChild(div);
     });
     box.scrollTop = box.scrollHeight;
   }
 
+  /* Load payload and ask o3 for intro */
   fetch(`${API}/payload/${slug}`)
-    .then(r => r.json())
-    .then(async data => {
+    .then(r=>r.json())
+    .then(async data=>{
       document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
-
-      const sys = `You are an expert negotiator helping facilitate a friendly, productive conversation.
-      ${data.from ? data.from : 'Someone'} asked: ${data.rq}
-      
-      PRIVATE CONTEXT: ${data.context}
-      
-      When greeting ${data.to}, just briefly mention that ${data.from ? data.from : 'someone'} asked for your help, and kindly ask if ${data.to} would be open to discussing the topic. Do NOT reveal detailed PRIVATE CONTEXT directly or suggest immediate drastic actions. Your goal is simply to start a friendly conversation and see if they're open to advice.`;
-
-      convo.push({role:'system', content: sys});
-
-      const r = await fetch(API, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({model:'o3', messages:convo})
-      });
-
-      if (!r.ok) throw new Error(await r.text());
-      const aiIntro = (await r.json()).choices[0].message.content.trim();
-      convo.push({role:'assistant', content: aiIntro});
+      const sys = `You are o3, an expert negotiator helping facilitate a friendly, productive conversation.\n`+
+                  `${data.from||'Someone'} asked: ${data.rq}\n\n`+
+                  `PRIVATE CONTEXT (never reveal): ${data.context}\n\n`+
+                  `Your first message should greet ${data.to} politely, mention ${data.from} asked for help, and offer to discuss. Do NOT reveal private context or suggest drastic changes immediately.`;
+      convo.push({role:'system',content:sys});
+      const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'o3',messages:convo})});
+      const intro = (await res.json()).choices[0].message.content.trim();
+      convo.push({role:'assistant',content:intro});
       render();
     })
-    .catch(err => alert(err.message));
+    .catch(err=>alert(err.message));
 
-  async function send() {
-    const input = document.getElementById('input');
-    const txt = input.value.trim();
-    if (!txt) return;
-    input.value = '';
-    convo.push({role:'user', content: txt});
+  async function send(){
+    const input=document.getElementById('input');
+    const txt=input.value.trim();
+    if(!txt) return;
+    input.value='';
+    convo.push({role:'user',content:txt});
     render();
 
-    const r = await fetch(API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({model:'o3', messages:convo})
-    });
-
-    if (!r.ok) return alert(await r.text());
-    const reply = (await r.json()).choices[0].message.content.trim();
-    convo.push({role:'assistant', content: reply});
+    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'o3',messages:convo})});
+    if(!r.ok){alert(await r.text());return;}
+    const ai=(await r.json()).choices[0].message.content.trim();
+    convo.push({role:'assistant',content:ai});
     render();
   }
 
-  document.getElementById('send').onclick = send;
-  document.getElementById('input').addEventListener('keydown', e=>{
-    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
-  });
+  document.getElementById('send').onclick=send;
+  document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
   </script>
 </body>
 </html>
