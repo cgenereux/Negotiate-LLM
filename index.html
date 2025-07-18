@@ -3,90 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Negotiate‑LLM Chat</title>
+  <title>Negotiate‑LLM Link Maker</title>
+
   <style>
-    body  { font-family: Arial, sans-serif; max-width: 900px; margin: auto; padding: 1rem; }
-    #chat { height: 450px; overflow-y: auto; border: 1px solid #ccc; padding:.5rem; margin-bottom: 1rem; }
-    .user   { color:#1a73e8;  margin-bottom:.5rem; white-space:pre-wrap; }
-    .assist { color:#188038;   margin-bottom:.5rem; white-space:pre-wrap; }
-    textarea{ width:100%; }
+    body    { font-family: Arial, sans-serif; margin: 0; background:#111; color:#eee; }
+    main    { max-width: 480px; margin: 12vh auto; padding: 1.5rem;
+              border: 1px solid #333; border-radius: 10px;
+              box-shadow: 0 4px 12px rgba(0,0,0,.4); background:#1c1c1c; }
+
+    label   { display: block; margin-bottom: .75rem; }
+    input, textarea {
+      width: 100%; padding: .45rem .6rem; font-size: 1rem;
+      border: 1px solid #555; border-radius: 6px; box-sizing: border-box;
+      background:#222; color:#eee;
+    }
+    textarea#context { height: 140px; resize: vertical; }
+
+    button  {
+      padding: .55rem 1.6rem; font-size: 1rem; border: none; border-radius: 6px;
+      background:#1a73e8; color:#fff; cursor:pointer;
+    }
+    button:hover { background:#1666c1; }
+
+    #out    { margin-top: 1rem; word-break: break-all; }
+    a       { color:#4dabff; }
   </style>
 </head>
 <body>
-  <h2 id="banner">Loading…</h2>
-  <div id="chat"></div>
-  <textarea id="input" rows="3" placeholder="Type a message & press Enter"></textarea>
-  <button id="send">Send</button>
+  <main>
+    <h2 style="text-align:center;margin-top:0">Create a negotiation link</h2>
+
+    <label>To:<br><input id="to"></label>
+    <label>From:<br><input id="from"></label>
+    <label>Request:<br><textarea id="request" rows="3"></textarea></label>
+    <label>Context:<br><textarea id="context"></textarea></label>
+
+    <div style="text-align:center"><button id="gen">Generate URL</button></div>
+    <p id="out"></p>
+  </main>
 
   <script>
-  const API  = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
-  const slug = new URLSearchParams(location.search).get('slug');
-  if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
+    const API = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
 
-  const convo = [];
-  const box = document.getElementById('chat');
+    document.getElementById('gen').onclick = async () => {
+      const payload = {
+        to      : document.getElementById('to').value.trim(),
+        from    : document.getElementById('from').value.trim(),
+        request : document.getElementById('request').value.trim(),
+        context : document.getElementById('context').value.trim()
+      };
 
-  function render() {
-    box.innerHTML = '';
-    convo.forEach(m => {
-      if(m.role === 'system') return; // never shown
-      const div = document.createElement('div');
-      div.className = m.role === 'assistant' ? 'assist' : 'user';
-      div.textContent = `${m.role === 'assistant' ? 'AI' : 'You'}: ${m.content}`;
-      box.appendChild(div);
-    });
-    box.scrollTop = box.scrollHeight;
-  }
-
-  fetch(`${API}/payload/${slug}`)
-    .then(r => r.json())
-    .then(async data => {
-      document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
-
-      const sys = `You are an expert negotiator. ` +
-                  `Curtis asked: ${data.rq}\n\n` +
-                  `PRIVATE CONTEXT: ${data.context}\n\n` +
-                  `Your first message should greet ${data.to} in a friendly way, summarize the request gently, and ask if they'd like help. NEVER show the PRIVATE CONTEXT directly.`;
-
-      convo.push({role:'system', content: sys});
-
-      const r = await fetch(API, {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({model:'o3', messages:convo})
+      const r = await fetch(API + '/create', {
+        method : 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body   : JSON.stringify(payload)
       });
 
-      if (!r.ok) throw new Error(await r.text());
-      const aiIntro = (await r.json()).choices[0].message.content.trim();
-      convo.push({role:'assistant', content: aiIntro});
-      render();
-    })
-    .catch(err => alert(err.message));
+      if (!r.ok) { alert(await r.text()); return; }
 
-  async function send() {
-    const input = document.getElementById('input');
-    const txt = input.value.trim();
-    if (!txt) return;
-    input.value = '';
-    convo.push({role:'user', content: txt});
-    render();
-
-    const r = await fetch(API, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({model:'o3', messages:convo})
-    });
-
-    if (!r.ok) return alert(await r.text());
-    const reply = (await r.json()).choices[0].message.content.trim();
-    convo.push({role:'assistant', content: reply});
-    render();
-  }
-
-  document.getElementById('send').onclick = send;
-  document.getElementById('input').addEventListener('keydown', e=>{
-    if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); }
-  });
+      const { url } = await r.json();
+      document.getElementById('out').innerHTML =
+        `Share this link: <br><a href="${url}" target="_blank">${url}</a>`;
+    };
   </script>
 </body>
 </html>
