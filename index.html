@@ -1,17 +1,39 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Negotiate LLM Link Maker</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Negotiate‑LLM Link Maker</title>
+  <style>
+    body    { font-family: Arial, sans-serif; margin: 0; }
+    main    { max-width: 480px; margin: 12vh auto; padding: 1.5rem; border: 1px solid #ccc; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,.06); }
+    label   { display: block; margin-bottom: .75rem; }
+    input, textarea {
+      width: 100%;
+      padding: .4rem .5rem;
+      border: 1px solid #bbb;
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    textarea#context { height: 140px; resize: vertical; }
+    button  { padding: .5rem 1.4rem; font-size: 1rem; border: none; border-radius: 6px; background:#1a73e8; color:#fff; cursor:pointer; }
+    button:hover { background:#1666c1; }
+    #out    { margin-top: 1rem; word-break: break-all; }
+  </style>
+</head>
 <body>
-  <h1>Create a helper link</h1>
+  <main>
+    <h2 style="text-align:center">Create a negotiation link</h2>
 
-  <label>To:<br><input id="to"  style="width:100%"></label><br><br>
-  <label>From:<br><input id="from" style="width:100%"></label><br><br>
-  <label>Request:<br><textarea id="request" rows="3" style="width:100%"></textarea></label><br><br>
-  <label>Context:<br><textarea id="context" rows="6" style="width:100%"></textarea></label><br><br>
+    <label>To:<br><input id="to"></label>
+    <label>From:<br><input id="from"></label>
+    <label>Request:<br><textarea id="request" rows="3"></textarea></label>
+    <label>Context:<br><textarea id="context"></textarea></label>
 
-  <button id="gen">Generate URL</button>
-
-  <p id="out"></p>
+    <div style="text-align:center"><button id="gen">Generate URL</button></div>
+    <p id="out"></p>
+  </main>
 
   <script>
     const API = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
@@ -23,15 +45,15 @@
         request: document.getElementById('request').value,
         context: document.getElementById('context').value,
       };
+
       const r = await fetch(API + '/create', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       if (!r.ok) return alert(await r.text());
       const { url } = await r.json();
-      document.getElementById('out').innerHTML =
-        `<a href="${url}" target="_blank">${url}</a>`;
+      document.getElementById('out').innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
     };
   </script>
 </body>
