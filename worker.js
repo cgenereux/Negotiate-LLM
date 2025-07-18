@@ -34,7 +34,7 @@ export default {
       await env.NEG_DATA.put(slug, JSON.stringify({ to, from, rq, context }), {
         expirationTtl: LINK_TTL
       });
-      return json({ slug, url: `${ALLOW_ORIGIN}/Negotiate-LLM/${slug}` });
+      return json({ slug, url: `${ALLOW_ORIGIN}/chat.html?slug=${slug}` });
     }
 
     /* ===== 2. GET stored payload ================================== */
