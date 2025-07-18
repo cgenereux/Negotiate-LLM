@@ -23,13 +23,13 @@
   const slug = new URLSearchParams(location.search).get('slug');
   if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
 
-  const convo = [];      // running conversation
-  const box   = document.getElementById('chat');
+  const convo = [];
+  const box = document.getElementById('chat');
 
   function render() {
     box.innerHTML = '';
     convo.forEach(m => {
-      if (m.role === 'system') return; // hide system/internal msgs
+      if(m.role === 'system') return; // never shown
       const div = document.createElement('div');
       div.className = m.role === 'assistant' ? 'assist' : 'user';
       div.textContent = `${m.role === 'assistant' ? 'AI' : 'You'}: ${m.content}`;
@@ -38,46 +38,48 @@
     box.scrollTop = box.scrollHeight;
   }
 
-  /* 1. Fetch payload and generate first AI message */
   fetch(`${API}/payload/${slug}`)
     .then(r => r.json())
     .then(async data => {
-      document.getElementById('banner').textContent = `Chat with ${data.to || 'Recipient'}`;
+      document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
 
-      const sys = `You are an expert negotiator hired by ${data.from || 'someone'}.\n\n`+
-                  `PRIVATE CONTEXT (not visible to ${data.to || 'the recipient'}):\n`+
-                  `${data.context}\n\n`+
-                  `Objective: ${data.rq}.\n`+
-                  `Do NOT reveal the private context. Begin with a friendly opening message addressing ${data.to}.`;
-      convo.push({ role:'system', content: sys });
+      const sys = `You are an expert negotiator. ` +
+                  `Curtis asked: ${data.rq}\n\n` +
+                  `PRIVATE CONTEXT: ${data.context}\n\n` +
+                  `Your first message should greet ${data.to} in a friendly way, summarize the request gently, and ask if they'd like help. NEVER show the PRIVATE CONTEXT directly.`;
 
-      // ask OpenAI for opening message
-      const res = await fetch(API, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ model:'o3', messages: convo })
+      convo.push({role:'system', content: sys});
+
+      const r = await fetch(API, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({model:'o3', messages:convo})
       });
-      const reply = (await res.json()).choices[0].message.content.trim();
-      convo.push({ role:'assistant', content: reply });
+
+      if (!r.ok) throw new Error(await r.text());
+      const aiIntro = (await r.json()).choices[0].message.content.trim();
+      convo.push({role:'assistant', content: aiIntro});
       render();
     })
     .catch(err => alert(err.message));
 
-  /* 2. send helper */
   async function send() {
     const input = document.getElementById('input');
     const txt = input.value.trim();
     if (!txt) return;
     input.value = '';
-    convo.push({ role:'user', content: txt });
+    convo.push({role:'user', content: txt});
     render();
 
     const r = await fetch(API, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'o3', messages: convo })
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({model:'o3', messages:convo})
     });
+
     if (!r.ok) return alert(await r.text());
     const reply = (await r.json()).choices[0].message.content.trim();
-    convo.push({ role:'assistant', content: reply });
+    convo.push({role:'assistant', content: reply});
     render();
   }
 
