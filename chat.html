@@ -2,17 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Negotiate‑LLM Chat</title>
   <style>
-    body  { font-family: Arial, sans-serif; max-width: 920px; margin: auto; padding: 1rem; background:#111; color:#eee; }
-    /* chat box now fills ~70% of viewport height */
-    #chat { height: 50vh; overflow-y: auto; border: 1px solid #333; padding:.8rem; margin-bottom: 1rem; background:#181818; }
+    body   { font-family: Arial, sans-serif; max-width: 920px; margin: auto; padding: 1rem; background:#111; color:#eee; }
+    #chat  { height: 50vh; overflow-y: auto; border: 1px solid #333; padding:.8rem; margin-bottom: 1rem; background:#181818; }
     .user   { color:#4dabff; margin-bottom:.6rem; white-space:pre-wrap; }
     .assist { color:#4ee290; margin-bottom:.6rem; white-space:pre-wrap; }
     textarea{ width:100%; background:#262626; color:#eee; border:1px solid #444; border-radius:6px; padding:.55rem; box-sizing:border-box; }
     button  { padding:.55rem 1.6rem; border:none; border-radius:6px; background:#1a73e8; color:#fff; cursor:pointer; }
-    button:hover{ background:#1666c1; }
+    button:hover { background:#1666c1; }
   </style>
 </head>
 <body>
@@ -22,58 +21,63 @@
   <button id="send">Send</button>
 
   <script>
-  const API  = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
-  const slug = new URLSearchParams(location.search).get('slug');
-  if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
+    const API  = 'https://still-glade-4d20.curtisgenereux01.workers.dev';
+    const slug = new URLSearchParams(location.search).get('slug');
+    if (!slug) { alert('Missing slug'); throw new Error('missing slug'); }
 
-  const convo = []; const box = document.getElementById('chat');
+    // We'll stash convo here so send() can append
+    window._convo = [];
+    const box = document.getElementById('chat');
 
-  function render(){
-    box.innerHTML='';
-    convo.forEach(m=>{
-      if(m.role==='system') return; // keep private context hidden
-      const div=document.createElement('div');
-      div.className = m.role==='assistant' ? 'assist' : 'user';
-      div.textContent = `${m.role==='assistant' ? 'o3' : 'You'}: ${m.content}`;
-      box.appendChild(div);
-    });
-    box.scrollTop = box.scrollHeight;
-  }
+    function render() {
+      box.innerHTML = '';
+      window._convo.forEach(m => {
+        const div = document.createElement('div');
+        div.className = m.role === 'assistant' ? 'assist' : 'user';
+        div.textContent = `${m.role === 'assistant' ? 'o3' : 'You'}: ${m.content}`;
+        box.appendChild(div);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
 
-  /* Load payload and ask o3 for intro */
-  fetch(`${API}/payload/${slug}`)
-    .then(r=>r.json())
-    .then(async data=>{
-      document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
-      const sys = `You are o3, an expert negotiator helping facilitate a friendly, productive conversation.\n`+
-                  `${data.from||'Someone'} asked: ${data.rq}\n\n`+
-                  `PRIVATE CONTEXT (never reveal): ${data.context}\n\n`+
-                  `Your first message should greet ${data.to} politely, mention ${data.from} asked for help, and offer to discuss. Do NOT reveal private context or suggest drastic changes immediately.`;
-      convo.push({role:'system',content:sys});
-      const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'o3',messages:convo})});
-      const intro = (await res.json()).choices[0].message.content.trim();
-      convo.push({role:'assistant',content:intro});
+    // 1. Fetch stored payload, display pre‑computed intro
+    fetch(`${API}/payload/${slug}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Invalid or expired link');
+        return r.json();
+      })
+      .then(data => {
+        document.getElementById('banner').textContent = `Chat for ${data.to || 'Recipient'}`;
+        // push the pre‑computed intro
+        window._convo.push({ role: 'assistant', content: data.intro });
+        render();
+      })
+      .catch(err => alert(err.message));
+
+    // 2. send helper
+    async function send() {
+      const input = document.getElementById('input');
+      const txt = input.value.trim();
+      if (!txt) return;
+      input.value = '';
+      window._convo.push({ role: 'user', content: txt });
       render();
-    })
-    .catch(err=>alert(err.message));
 
-  async function send(){
-    const input=document.getElementById('input');
-    const txt=input.value.trim();
-    if(!txt) return;
-    input.value='';
-    convo.push({role:'user',content:txt});
-    render();
+      const res = await fetch(API, {
+        method: 'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ model:'o3', messages: window._convo })
+      });
+      if (!res.ok) return alert(await res.text());
+      const data = await res.json();
+      window._convo.push({ role: 'assistant', content: data.choices[0].message.content.trim() });
+      render();
+    }
 
-    const r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'o3',messages:convo})});
-    if(!r.ok){alert(await r.text());return;}
-    const ai=(await r.json()).choices[0].message.content.trim();
-    convo.push({role:'assistant',content:ai});
-    render();
-  }
-
-  document.getElementById('send').onclick=send;
-  document.getElementById('input').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}});
+    document.getElementById('send').onclick = send;
+    document.getElementById('input').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
   </script>
 </body>
 </html>
